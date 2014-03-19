@@ -1,0 +1,60 @@
+#!/bin/bash
+# vim: sw=4:ts=4:et
+
+NOTEVIM="$0"
+NOTES_DIR="$HOME/SparkleShare/notes"
+SESSION_NAME="NOTEVIM"
+
+if [ -z "$1" ]; then
+    # List mode
+    echo "Dave's note vim loader"
+    echo "Usage:"
+    echo "   $0 <filename>  - open file in note directory"
+    echo "   $0 --openbox   - Openbox pipe menu with the files in the note dir"
+    echo "   $0 --dmenu     - Show dmenu as a selector for the files"
+    echo "   $0 --list      - Normal list of the files in the note dir"
+    echo "   $0             - Without any parameters, shows this help text"
+    echo "The note directory is $NOTES_DIR"
+    exit 0
+elif [ "$1" == '--list' ]; then
+    ls "$NOTES_DIR"
+    exit 0
+elif [ "$1" == '--openbox' ]; then
+    printf '<openbox_pipe_menu>\n'
+    for file in $(ls $NOTES_DIR); do
+        printf '<item label="_%s">\n' "$file"
+        printf '<action name="Execute">\n'
+        printf '    <execute>\n'
+        printf '        %s %s' "$0" "$file"
+        printf '    </execute>\n'
+        printf '</action>\n'
+        printf '</item>\n'
+    done
+    printf '</openbox_pipe_menu>\n'
+    exit 0
+elif [ "$1" == '--dmenu' ]; then
+    FILE="$(ls $NOTES_DIR | dmenu -i -p 'Open Note:')"
+
+    if [ -z "$FILE" ]; then
+        echo "no file selected, aborting"
+        exit 1
+    fi
+    
+    exec bash "$0" "$FILE"
+fi
+
+FILE=$NOTES_DIR/$1
+
+if gvim --serverlist |grep -q $SESSION_NAME; then
+    # Scratchpad session exists
+    # open scratchpad if it's not open already
+    gvim --servername $SESSION_NAME --remote-tab $FILE
+    wmctrl -l \
+        | awk '/'$SESSION_NAME'/ {print $1}' \
+        | xargs -I% wmctrl -i -R %
+else
+
+    cd "$NOTES_DIR"
+    gvim --servername $SESSION_NAME "$1"
+
+fi
