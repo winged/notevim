@@ -32,3 +32,9 @@ notes:
 
     <menu execute="/PATH/TO/notevim --openbox" id="notes" label="Notes"/>
 
+
+Sharing across different machines
+---------------------------------
+
+Okay, this is not built into the script, but I'm using SparkleShare
+(http://sparkleshare.org/) to sync my notes to all my machines. 
