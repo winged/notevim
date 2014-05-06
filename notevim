@@ -21,6 +21,13 @@ elif [ "$1" == '--list' ]; then
     exit 0
 elif [ "$1" == '--openbox' ]; then
     printf '<openbox_pipe_menu>\n'
+    printf '<item label="(New/None)">\n'
+    printf '<action name="Execute">\n'
+    printf '    <execute>\n'
+    printf '        %s %s' "$0" "*"
+    printf '    </execute>\n'
+    printf '</action>\n'
+    printf '</item>\n'
     for file in $(ls $NOTES_DIR); do
         printf '<item label="_%s">\n' "$file"
         printf '<action name="Execute">\n'
@@ -33,28 +40,36 @@ elif [ "$1" == '--openbox' ]; then
     printf '</openbox_pipe_menu>\n'
     exit 0
 elif [ "$1" == '--dmenu' ]; then
-    FILE="$(ls $NOTES_DIR | dmenu -i -p 'Open Note:')"
+    FILE="$((ls $NOTES_DIR; echo '*') | sort | dmenu -i -p 'Open Note:')"
 
     if [ -z "$FILE" ]; then
         echo "no file selected, aborting"
         exit 1
     fi
-    
+
     exec bash "$0" "$FILE"
 fi
 
-FILE=$NOTES_DIR/$1
+FILE="$NOTES_DIR/$1"
 
 if gvim --serverlist |grep -q $SESSION_NAME; then
     # Scratchpad session exists
     # open scratchpad if it's not open already
-    gvim --servername $SESSION_NAME --remote-tab $FILE
+    if [ "$1" = "*" ]; then
+        gvim --servername $SESSION_NAME  --remote-send :tabnew'<cr>'
+    else
+        gvim --servername $SESSION_NAME --remote-tab "$FILE"
+    fi
     wmctrl -l \
         | awk '/'$SESSION_NAME'/ {print $1}' \
         | xargs -I% wmctrl -i -R %
 else
 
     cd "$NOTES_DIR"
-    gvim --servername $SESSION_NAME "$1"
+    if [ "$1" = "*" ]; then
+        gvim --servername $SESSION_NAME
+    else
+        gvim --servername $SESSION_NAME "$1"
+    fi
 
 fi
