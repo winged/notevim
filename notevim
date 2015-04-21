@@ -4,6 +4,8 @@
 NOTEVIM="$0"
 NOTES_DIR="$HOME/SparkleShare/notes"
 SESSION_NAME="NOTEVIM"
+MODE=neovim
+TERMINAL_EMULATOR=sakura
 
 if [ -z "$1" ]; then
     # List mode
@@ -52,24 +54,53 @@ fi
 
 FILE="$NOTES_DIR/$1"
 
-if gvim --serverlist |grep -q $SESSION_NAME; then
-    # Scratchpad session exists
-    # open scratchpad if it's not open already
-    if [ "$1" = "*" ]; then
-        gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
-    else
-        gvim --servername $SESSION_NAME --remote-tab "$FILE"
-    fi
-    wmctrl -l \
-        | awk '/'$SESSION_NAME'/ {print $1}' \
-        | xargs -I% wmctrl -i -R %
-else
+if [ "$MODE" == 'neovim' ]; then
+    NEOVIM_SOCK=/tmp/neovim-notevim
+    if [ -S "$NEOVIM_SOCK" ]; then
+        python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':tabnew')"
+        if [ "$1" != "*" ]; then
+            python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':edit $FILE')"
 
-    cd "$NOTES_DIR"
-    if [ "$1" = "*" ]; then
-        gvim --servername $SESSION_NAME
+            # not sure why this is required - airline tabline breaks otherwise
+            python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':edit!')"
+        fi
+
+        wmctrl -l \
+            | awk '/'$SESSION_NAME'/ {print $1}' \
+            | xargs -I% wmctrl -i -R %
+        exit 0
     else
-        gvim --servername $SESSION_NAME "$1"
+        cd "$NOTES_DIR"
+        export NVIM_TUI_ENABLE_TRUE_COLOR=1
+        export NVIM_LISTEN_ADDRESS="$NEOVIM_SOCK"
+
+        if [ "$1" == "*" ]; then
+            exec $TERMINAL_EMULATOR -t "NOTEVIM" -e nvim
+        else
+            exec $TERMINAL_EMULATOR -t "NOTEVIM" -e nvim "$FILE"
+        fi
     fi
 
+elif [ "$MODE" == 'gvim' ]; then
+
+    if gvim --serverlist |grep -q $SESSION_NAME; then
+        # Scratchpad session exists
+        # open scratchpad if it's not open already
+        if [ "$1" = "*" ]; then
+            gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
+        else
+            gvim --servername $SESSION_NAME --remote-tab "$FILE"
+        fi
+        wmctrl -l \
+            | awk '/'$SESSION_NAME'/ {print $1}' \
+            | xargs -I% wmctrl -i -R %
+    else
+
+        cd "$NOTES_DIR"
+        if [ "$1" = "*" ]; then
+            gvim --servername $SESSION_NAME
+        else
+            gvim --servername $SESSION_NAME "$1"
+        fi
+    fi
 fi
