@@ -17,7 +17,7 @@ if [ -z "$1" ]; then
     echo "The note directory is $NOTES_DIR"
     exit 0
 elif [ "$1" == '--list' ]; then
-    ls "$NOTES_DIR"
+    ls -1 "$NOTES_DIR"
     exit 0
 elif [ "$1" == '--openbox' ]; then
     printf '<openbox_pipe_menu>\n'
@@ -56,7 +56,7 @@ if gvim --serverlist |grep -q $SESSION_NAME; then
     # Scratchpad session exists
     # open scratchpad if it's not open already
     if [ "$1" = "*" ]; then
-        gvim --servername $SESSION_NAME  --remote-send :tabnew'<cr>'
+        gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
     else
         gvim --servername $SESSION_NAME --remote-tab "$FILE"
     fi
