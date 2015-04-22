@@ -81,6 +81,8 @@ def cmd_open(filename):
     else:
         cmd_open_gvim(filename)
 
+    fetch_window()
+
 
 def fetch_window():
     windows = subprocess.check_output(['wmctrl', '-l']).decode('utf-8').split("\n")
@@ -96,11 +98,11 @@ def cmd_open_neovim(filename):
     # module is not present on the system
     import neovim
 
-    socket    = os.path.expanduser('/tmp/neovim-notevim-$USER')
+    socket    = os.path.expandvars('/tmp/neovim-notevim-$USER')
     full_path = os.path.join(NOTES_DIR, filename)
 
     if os.path.exists(socket):
-        client = neovim.attach(socket_file)
+        client = neovim.attach('socket', path=socket)
 
         client.command(':tabnew')
 
