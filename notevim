@@ -1,106 +1,175 @@
-#!/bin/bash
+#!/usr/bin/python2
 # vim: sw=4:ts=4:et
 
-NOTEVIM="$0"
-NOTES_DIR="$HOME/SparkleShare/notes"
-SESSION_NAME="NOTEVIM"
-MODE=neovim
-TERMINAL_EMULATOR=sakura
+from __future__ import print_function
+import subprocess
+import glob
+import sys
+import os
 
-if [ -z "$1" ]; then
-    # List mode
-    echo "Dave's note vim loader"
-    echo "Usage:"
-    echo "   $0 <filename>  - open file in note directory"
-    echo "   $0 --openbox   - Openbox pipe menu with the files in the note dir"
-    echo "   $0 --dmenu     - Show dmenu as a selector for the files"
-    echo "   $0 --list      - Normal list of the files in the note dir"
-    echo "   $0             - Without any parameters, shows this help text"
-    echo "The note directory is $NOTES_DIR"
-    exit 0
-elif [ "$1" == '--list' ]; then
-    ls -1 "$NOTES_DIR"
-    exit 0
-elif [ "$1" == '--openbox' ]; then
-    printf '<openbox_pipe_menu>\n'
-    printf '<item label="(New/None)">\n'
-    printf '<action name="Execute">\n'
-    printf '    <execute>\n'
-    printf '        %s %s' "$0" "*"
-    printf '    </execute>\n'
-    printf '</action>\n'
-    printf '</item>\n'
-    for file in $(ls $NOTES_DIR); do
-        printf '<item label="_%s">\n' "$file"
-        printf '<action name="Execute">\n'
-        printf '    <execute>\n'
-        printf '        %s %s' "$0" "$file"
-        printf '    </execute>\n'
-        printf '</action>\n'
-        printf '</item>\n'
-    done
-    printf '</openbox_pipe_menu>\n'
-    exit 0
-elif [ "$1" == '--dmenu' ]; then
-    FILE="$((ls $NOTES_DIR; echo '*') | sort | dmenu -i -p 'Open Note:')"
 
-    if [ -z "$FILE" ]; then
-        echo "no file selected, aborting"
-        exit 1
-    fi
+NOTEVIM           = sys.argv[0]
+NOTES_DIR         = os.path.expandvars("$HOME/SparkleShare/notes")
+SESSION_NAME      = "NOTEVIM"
+MODE              = 'neovim'
+TERMINAL_EMULATOR = 'sakura'
 
-    exec bash "$0" "$FILE"
-fi
+def cmd_usage():
+    usage_text = (
+        "Dave's note vim loader\n"
+        "Usage:\n"
+        "   notevim <filename>  - open file in note directory\n"
+        "   notevim --openbox   - Openbox pipe menu with the files in the note dir\n"
+        "   notevim --dmenu     - Show dmenu as a selector for the files\n"
+        "   notevim --list      - Normal list of the files in the note dir\n"
+        "   notevim             - Without any parameters, shows this help text\n"
+        "The note directory is $NOTES_DIR\n")
+    print(usage_text)
+    sys.exit(0)
 
-FILE="$NOTES_DIR/$1"
+def list_files():
+    for name in glob.glob(os.path.join(NOTES_DIR, '*')):
+        yield os.path.basename(name)
 
-if [ "$MODE" == 'neovim' ]; then
-    NEOVIM_SOCK=/tmp/neovim-notevim
-    if [ -S "$NEOVIM_SOCK" ]; then
-        python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':tabnew')"
-        if [ "$1" != "*" ]; then
-            python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':edit $FILE')"
+def cmd_list():
+    for name in list_files():
+        print(name)
 
-            # not sure why this is required - airline tabline breaks otherwise
-            python2 -c "from neovim import attach; attach('socket', path='$NEOVIM_SOCK').command(':edit!')"
-        fi
+def cmd_list_openbox():
+    prelude = (
+        '<openbox_pipe_menu>\n'
+        '<item label="(New/None)">\n'
+        '<action name="Execute">\n'
+        '    <execute>\n'
+        '        %s *\n'
+        '    </execute>\n'
+        '</action>\n'
+        '</item>\n'
+    )
+    print(prelude % NOTEVIM)
 
-        wmctrl -l \
-            | awk '/'$SESSION_NAME'/ {print $1}' \
-            | xargs -I% wmctrl -i -R %
-        exit 0
-    else
-        cd "$NOTES_DIR"
-        export NVIM_TUI_ENABLE_TRUE_COLOR=1
-        export NVIM_LISTEN_ADDRESS="$NEOVIM_SOCK"
+    for name in list_files:
+        entry = (
+            '<item label="_%s">\n'
+            '<action name="Execute">\n'
+            '    <execute>\n'
+            '        %s %s\n'
+            '    </execute>\n'
+            '</action>\n'
+            '</item>\n'
+        )
+        print (entry % (name, NOTEVIM, name))
 
-        if [ "$1" == "*" ]; then
-            exec $TERMINAL_EMULATOR -t "NOTEVIM" -e nvim
-        else
-            exec $TERMINAL_EMULATOR -t "NOTEVIM" -e nvim "$FILE"
-        fi
-    fi
+    print('</openbox_pipe_menu>\n')
 
-elif [ "$MODE" == 'gvim' ]; then
+def cmd_dmenu():
+    names_list = "\n".join(sorted(list_files())) + "\n"
+    dm = subprocess.Popen(
+        ['dmenu', '-i', '-p', 'Open Note:'],
+        stdin =subprocess.PIPE,
+        stdout=subprocess.PIPE
+    )
+    stdout, stderr = dm.communicate(names_list)
 
-    if gvim --serverlist |grep -q $SESSION_NAME; then
-        # Scratchpad session exists
-        # open scratchpad if it's not open already
-        if [ "$1" = "*" ]; then
-            gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
-        else
-            gvim --servername $SESSION_NAME --remote-tab "$FILE"
-        fi
-        wmctrl -l \
-            | awk '/'$SESSION_NAME'/ {print $1}' \
-            | xargs -I% wmctrl -i -R %
-    else
+    stdout = stdout.decode('utf-8')
+    return stdout.strip()
 
-        cd "$NOTES_DIR"
-        if [ "$1" = "*" ]; then
-            gvim --servername $SESSION_NAME
-        else
-            gvim --servername $SESSION_NAME "$1"
-        fi
-    fi
-fi
+
+def cmd_open(filename):
+    if MODE == 'neovim':
+        cmd_open_neovim(filename)
+    else:
+        cmd_open_gvim(filename)
+
+
+def fetch_window():
+    windows = subprocess.check_output(['wmctrl', '-l']).decode('utf-8').split("\n")
+
+    session_windows = [win.split(" ")[0] for win in windows if SESSION_NAME in win]
+
+    if len(session_windows):
+        subprocess.check_call(['wmctrl', '-i', '-R', session_windows[0]])
+
+
+def cmd_open_neovim(filename):
+    # import here so we don't crash in gvim mode if neovim
+    # module is not present on the system
+    import neovim
+
+    socket    = os.path.expanduser('/tmp/neovim-notevim-$USER')
+    full_path = os.path.join(NOTES_DIR, filename)
+
+    if os.path.exists(socket):
+        client = neovim.attach(socket_file)
+
+        client.command(':tabnew')
+
+        if filename == '*':
+            # special case: new file
+            return
+
+        client.command(':edit %s' % full_path)
+
+        # workaround for airline update problem - TODO: really needed?
+        client.command(':edit! %s')
+
+    else:
+        os.chdir(NOTES_DIR)
+
+        os.environ.update({
+            'NVIM_TUI_ENABLE_TRUE_COLOR': '1',
+            'NVIM_LISTEN_ADDRESS':        socket
+        })
+
+        cmd = [TERMINAL_EMULATOR, '-t', SESSION_NAME, '-e', 'nvim']
+
+        if filename != '*':
+            cmd.append(filename)
+
+        subprocess.call(cmd)
+
+
+def cmd_open_gvim(filename):
+    raise Exception('Sorry, not implemented yet')
+
+    # Old shell impl:
+    #if gvim --serverlist |grep -q $SESSION_NAME; then
+    #    # Scratchpad session exists
+    #    # open scratchpad if it's not open already
+    #    if [ "$1" = "*" ]; then
+    #        gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
+    #    else
+    #        gvim --servername $SESSION_NAME --remote-tab "$FILE"
+    #    fi
+    #    wmctrl -l \
+    #        | awk '/'$SESSION_NAME'/ {print $1}' \
+    #        | xargs -I% wmctrl -i -R %
+    #else
+
+    #    cd "$NOTES_DIR"
+    #    if [ "$1" = "*" ]; then
+    #        gvim --servername $SESSION_NAME
+    #    else
+    #        gvim --servername $SESSION_NAME "$1"
+    #    fi
+    #fi
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        cmd_usage()
+
+    cmd = sys.argv[1]
+
+    if cmd == '--list':
+        cmd_list()
+
+    elif cmd == '--openbox':
+        cmd_list_openbox()
+
+    elif cmd == '--dmenu':
+        filename = cmd_dmenu()
+        cmd_open(filename)
+
+    else:
+        cmd_open(cmd)
+
