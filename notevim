@@ -28,6 +28,7 @@ def cmd_usage():
     sys.exit(0)
 
 def list_files():
+    yield '*'
     for name in glob.glob(os.path.join(NOTES_DIR, '*')):
         yield os.path.basename(name)
 
@@ -113,7 +114,7 @@ def cmd_open_neovim(filename):
         client.command(':edit %s' % full_path)
 
         # workaround for airline update problem - TODO: really needed?
-        client.command(':edit! %s')
+        client.command(':edit!')
 
     else:
         os.chdir(NOTES_DIR)
