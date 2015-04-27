@@ -77,7 +77,9 @@ def cmd_dmenu():
 
 
 def cmd_open(filename):
-    if MODE == 'neovim':
+    if filename == '':
+        print("No filename given, probably menu aborted.")
+    elif MODE == 'neovim':
         cmd_open_neovim(filename)
     else:
         cmd_open_gvim(filename)
