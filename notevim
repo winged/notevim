@@ -105,9 +105,14 @@ def cmd_open_neovim(filename):
     full_path = os.path.join(NOTES_DIR, filename)
 
     if os.path.exists(socket):
-        client = neovim.attach('socket', path=socket)
+        try:
+            client = neovim.attach('socket', path=socket)
+            client.command(':tabnew')
 
-        client.command(':tabnew')
+        except Exception as e:
+            # Socket not writable, prolly leftover socket file..
+            os.unlink(socket)
+            return cmd_open_neovim(filename)
 
         if filename == '*':
             # special case: new file
