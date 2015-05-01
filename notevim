@@ -6,13 +6,60 @@ import subprocess
 import glob
 import sys
 import os
+import re
+
+try:
+    import ConfigParser as configparser
+except:
+    import configparser
+
+CONFIG_DEFAULTS = """
+[notevim]
+
+; mode can be "neovim" or "gvim".
+mode         = gvim
+
+; the session name is used to identify the gvim instance used for notevim.
+; You may change it if you want, but you probably shouldn't set it to "GVIM"
+; because that would be the default, and thus we could not identify our
+; instance correctly anymore.
+session_name = NOTEVIM
+
+; The directory where the notes will be managed. You can use shell variables
+; in this directory, which will be expanded (so you can use $HOME, for example)
+notes_dir    = $HOME/notes
+
+[gvim]
+; Currently no specific options for gvim
+
+; you may optionally point the executable to something else... 
+executable = /usr/bin/gvim
+
+[neovim]
+
+; terminal: You can use the placeholders %TITLE to set the title
+; of the terminal, which will be set to the session_name (see above).
+; You MUST put in the placeholder %CMD so we know how to run neovim
+; within the terminal.
+terminal = sakura -t %TITLE -e %CMD
+
+; you may optionally point the executable to something else... 
+executable = /usr/bin/nvim
+
+
+; The socket which will be used to communicate with neovim. You can use shell
+; variables here, which will be expanded (so you can use $USER, for example)
+socket   = /tmp/neovim-notevim-$USER
+
+; Any uppercase variable in this section will be set in the environment
+; before launching neovim. Useful for color / cursor configuration etc.
+NVIM_TUI_ENABLE_TRUE_COLOR = 1
+
+"""
 
 
 NOTEVIM           = sys.argv[0]
-NOTES_DIR         = os.path.expandvars("$HOME/SparkleShare/notes")
-SESSION_NAME      = "NOTEVIM"
-MODE              = 'neovim'
-TERMINAL_EMULATOR = 'sakura'
+CONFIG            = configparser.RawConfigParser()
 
 def cmd_usage():
     usage_text = (
@@ -23,13 +70,14 @@ def cmd_usage():
         "   notevim --dmenu     - Show dmenu as a selector for the files\n"
         "   notevim --list      - Normal list of the files in the note dir\n"
         "   notevim             - Without any parameters, shows this help text\n"
-        "The note directory is $NOTES_DIR\n")
+        "The note directory is %s\n" % CONFIG.get('notevim', 'notes_dir'))
     print(usage_text)
     sys.exit(0)
 
 def list_files():
     yield '*'
-    for name in glob.glob(os.path.join(NOTES_DIR, '*')):
+    notes_dir = os.path.expandvars(CONFIG.get('notevim', 'notes_dir'))
+    for name in glob.glob(os.path.join(notes_dir, '*')):
         yield os.path.basename(name)
 
 def cmd_list():
@@ -49,7 +97,7 @@ def cmd_list_openbox():
     )
     print(prelude % NOTEVIM)
 
-    for name in list_files:
+    for name in list_files():
         entry = (
             '<item label="_%s">\n'
             '<action name="Execute">\n'
@@ -77,23 +125,48 @@ def cmd_dmenu():
 
 
 def cmd_open(filename):
+
+    os.chdir(os.path.expandvars(CONFIG.get('notevim', 'notes_dir')))
+
     if filename == '':
         print("No filename given, probably menu aborted.")
-    elif MODE == 'neovim':
+
+    elif CONFIG.get('notevim', 'mode') == 'neovim':
         cmd_open_neovim(filename)
-    else:
+
+    elif CONFIG.get('notevim', 'mode') == 'gvim':
         cmd_open_gvim(filename)
 
-    fetch_window()
+    else:
+        print("Uh... invalid setting detected: Section [notevim], value 'mode' should")
+        print("be either 'neovim' or 'gvim'. Got '%s' instead..." % CONFIG.get('notevim', 'mode'))
+        sys.exit(1)
+
 
 
 def fetch_window():
     windows = subprocess.check_output(['wmctrl', '-l']).decode('utf-8').split("\n")
+    
+    session_name = CONFIG.get('notevim', 'session_name')
 
-    session_windows = [win.split(" ")[0] for win in windows if SESSION_NAME in win]
+    session_windows = [win.split(" ")[0] for win in windows if session_name in win]
 
     if len(session_windows):
         subprocess.check_call(['wmctrl', '-i', '-R', session_windows[0]])
+
+
+def generate_cmdline(params, filename):
+    for param in params:
+        if param == '%CMD':
+            yield os.path.expandvars(CONFIG.get('neovim', 'executable'))
+            if filename != '*':
+                yield filename
+
+        elif param == '%TITLE':
+            yield CONFIG.get('notevim', 'session_name')
+
+        else:
+            yield param
 
 
 def cmd_open_neovim(filename):
@@ -101,8 +174,11 @@ def cmd_open_neovim(filename):
     # module is not present on the system
     import neovim
 
+    nvim      = os.path.expandvars(CONFIG.get('neovim', 'executable'))
     socket    = os.path.expandvars('/tmp/neovim-notevim-$USER')
-    full_path = os.path.join(NOTES_DIR, filename)
+
+    full_path = os.path.join(os.path.expandvars(CONFIG.get('notevim', 'notes_dir')), filename)
+
 
     if os.path.exists(socket):
         try:
@@ -123,15 +199,53 @@ def cmd_open_neovim(filename):
         # workaround for airline update problem - TODO: really needed?
         client.command(':edit!')
 
+        fetch_window()
+
     else:
-        os.chdir(NOTES_DIR)
 
-        os.environ.update({
-            'NVIM_TUI_ENABLE_TRUE_COLOR': '1',
-            'NVIM_LISTEN_ADDRESS':        socket
-        })
+        expand_env('neovim')
+        os.environ['NVIM_LISTEN_ADDRESS'] = socket
 
-        cmd = [TERMINAL_EMULATOR, '-t', SESSION_NAME, '-e', 'nvim']
+        cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()), filename))
+        print(cmd)
+        subprocess.call(cmd)
+
+def expand_env(section):
+    for name, value in CONFIG.items(section):
+        if name.upper() == name:
+            os.environ[name] = value
+
+
+def cmd_open_gvim(filename):
+    gvim = os.path.expandvars(CONFIG.get('gvim', 'executable'))
+    vim_servers = subprocess.check_output([gvim, '--serverlist']).decode('utf-8').split("\n")
+
+    session_name = CONFIG.get('notevim', 'session_name')
+    if session_name in vim_servers:
+
+        if filename == '*':
+            subprocess.call([
+                gvim,
+                '--servername',
+                session_name,
+                '--remote-send',
+                '<esc>:tabnew<cr>'
+                ])
+        else:
+            subprocess.call([
+                gvim,
+                '--servername',
+                session_name,
+                '--remote-tab',
+                filename
+            ])
+
+        fetch_window()
+    else:
+
+        expand_env('gvim')
+
+        cmd = [gvim, '--servername', session_name]
 
         if filename != '*':
             cmd.append(filename)
@@ -139,34 +253,21 @@ def cmd_open_neovim(filename):
         subprocess.call(cmd)
 
 
-def cmd_open_gvim(filename):
-    raise Exception('Sorry, not implemented yet')
-
-    # Old shell impl:
-    #if gvim --serverlist |grep -q $SESSION_NAME; then
-    #    # Scratchpad session exists
-    #    # open scratchpad if it's not open already
-    #    if [ "$1" = "*" ]; then
-    #        gvim --servername $SESSION_NAME  --remote-send '<esc>:tabnew<cr>'
-    #    else
-    #        gvim --servername $SESSION_NAME --remote-tab "$FILE"
-    #    fi
-    #    wmctrl -l \
-    #        | awk '/'$SESSION_NAME'/ {print $1}' \
-    #        | xargs -I% wmctrl -i -R %
-    #else
-
-    #    cd "$NOTES_DIR"
-    #    if [ "$1" = "*" ]; then
-    #        gvim --servername $SESSION_NAME
-    #    else
-    #        gvim --servername $SESSION_NAME "$1"
-    #    fi
-    #fi
-
 if __name__ == '__main__':
+    config_file = os.path.expandvars("$HOME/.notevim")
+    
+    parsed_files = CONFIG.read(config_file)
+    if len(parsed_files) == 0:
+        with open(config_file, 'w') as cfh:
+            cfh.write(CONFIG_DEFAULTS)
+        print("No config file found in %s, so I've created one for you." % config_file)
+        print("Please review the file and change it if needed.")
+        sys.exit()
+
     if len(sys.argv) < 2:
         cmd_usage()
+
+
 
     cmd = sys.argv[1]
 
