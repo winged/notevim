@@ -58,8 +58,10 @@ NVIM_TUI_ENABLE_TRUE_COLOR = 1
 """
 
 
-NOTEVIM           = sys.argv[0]
-CONFIG            = configparser.RawConfigParser()
+NOTEVIM            = sys.argv[0]
+CONFIG             = configparser.RawConfigParser()
+CONFIG.optionxform = str
+
 
 def cmd_usage():
     usage_text = (
@@ -207,7 +209,7 @@ def cmd_open_neovim(filename):
         os.environ['NVIM_LISTEN_ADDRESS'] = socket
 
         cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()), filename))
-        print(cmd)
+        #print(cmd)
         subprocess.call(cmd)
 
 def expand_env(section):
