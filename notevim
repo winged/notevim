@@ -192,14 +192,11 @@ def cmd_open_neovim(filename):
             os.unlink(socket)
             return cmd_open_neovim(filename)
 
-        if filename == '*':
-            # special case: new file
-            return
+        if filename != '*':
+            client.command(':edit %s' % full_path)
 
-        client.command(':edit %s' % full_path)
-
-        # workaround for airline update problem - TODO: really needed?
-        client.command(':edit!')
+            # workaround for airline update problem - TODO: really needed?
+            client.command(':edit!')
 
         fetch_window()
 
