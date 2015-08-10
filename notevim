@@ -187,6 +187,8 @@ def cmd_open_neovim(filename):
             client = neovim.attach('socket', path=socket)
             client.command(':tabnew')
 
+            fetch_window()
+
         except Exception as e:
             # Socket not writable, prolly leftover socket file..
             os.unlink(socket)
@@ -198,7 +200,6 @@ def cmd_open_neovim(filename):
             # workaround for airline update problem - TODO: really needed?
             client.command(':edit!')
 
-        fetch_window()
 
     else:
 
