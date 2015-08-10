@@ -197,8 +197,8 @@ def cmd_open_neovim(filename):
         if filename != '*':
             client.command(':edit %s' % full_path)
 
-            # workaround for airline update problem - TODO: really needed?
-            client.command(':edit!')
+            ## workaround for airline update problem - TODO: really needed?
+            #client.command(':edit!')
 
 
     else:
