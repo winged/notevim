@@ -195,7 +195,10 @@ def cmd_open_neovim(filename):
             return cmd_open_neovim(filename)
 
         if filename != '*':
-            client.command(':edit %s' % full_path)
+
+            found = nvim_activate_if_possible(client, full_path)
+            if not found:
+                client.command(':edit %s' % full_path)
 
             ## workaround for airline update problem - TODO: really needed?
             #client.command(':edit!')
@@ -209,6 +212,19 @@ def cmd_open_neovim(filename):
         cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()), filename))
         #print(cmd)
         subprocess.call(cmd)
+
+def nvim_activate_if_possible(client, filename):
+    for tabid, tab in enumerate(client.tabpages):
+        for (winid, win) in enumerate(tab.windows):
+            buf = win.buffer
+            if buf.name == filename:
+                # found - activate tab and return
+                #print("Found: tabid=%d, winid=%d, bufname=%s" % (tabid, winid, buf.name))
+                client.command(':tabn %d' % (tabid+1))
+                return True
+
+    # Reached this line, so we don't have thsi file open yet
+    return False
 
 def expand_env(section):
     for name, value in CONFIG.items(section):
