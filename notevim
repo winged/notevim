@@ -185,7 +185,8 @@ def cmd_open_neovim(filename):
     if os.path.exists(socket):
         try:
             client = neovim.attach('socket', path=socket)
-            client.command(':tabnew')
+            # try to communicate
+            list(client.tabpages)
 
             fetch_window()
 
@@ -194,10 +195,14 @@ def cmd_open_neovim(filename):
             os.unlink(socket)
             return cmd_open_neovim(filename)
 
-        if filename != '*':
+        if filename == '*':
+            client.command(':tabnew')
+
+        else:
 
             found = nvim_activate_if_possible(client, full_path)
             if not found:
+                client.command(':tabnew')
                 client.command(':edit %s' % full_path)
 
             ## workaround for airline update problem - TODO: really needed?
