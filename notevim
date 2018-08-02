@@ -214,7 +214,7 @@ def cmd_open_neovim(filename):
         expand_env('neovim')
         os.environ['NVIM_LISTEN_ADDRESS'] = socket
 
-        cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()), filename))
+        cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()), full_path))
         #print(cmd)
         subprocess.call(cmd)
 
