@@ -136,12 +136,15 @@ def cmd_open(filename):
     elif CONFIG.get('notevim', 'mode') == 'neovim':
         cmd_open_neovim(filename)
 
+    elif CONFIG.get('notevim', 'mode') == 'kakoune':
+        cmd_open_kakoune(filename)
+
     elif CONFIG.get('notevim', 'mode') == 'gvim':
         cmd_open_gvim(filename)
 
     else:
         print("Uh... invalid setting detected: Section [notevim], value 'mode' should")
-        print("be either 'neovim' or 'gvim'. Got '%s' instead..." % CONFIG.get('notevim', 'mode'))
+        print("be either 'kakoune', 'neovim' or 'gvim'. Got '%s' instead..." % CONFIG.get('notevim', 'mode'))
         sys.exit(1)
 
 
@@ -158,9 +161,10 @@ def fetch_window():
 
 
 def generate_cmdline(params, filename):
+    mode = CONFIG.get('notevim', 'mode')
     for param in params:
         if param == '%CMD':
-            yield os.path.expandvars(CONFIG.get('neovim', 'executable'))
+            yield os.path.expandvars(CONFIG.get(mode, 'executable'))
             if filename[-1] != '*':
                 yield filename
 
@@ -169,7 +173,6 @@ def generate_cmdline(params, filename):
 
         else:
             yield param
-
 
 def cmd_open_neovim(filename):
     # import here so we don't crash in gvim mode if neovim
@@ -217,6 +220,28 @@ def cmd_open_neovim(filename):
         cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('neovim', 'terminal').strip()) + ['--listen', socket ], full_path))
         #print(cmd)
         subprocess.call(cmd, cwd=CONFIG.get('notevim', 'notes_dir'), env=os.environ)
+
+def cmd_open_kakoune(filename):
+    full_path = os.path.join(os.path.expandvars(CONFIG.get('notevim', 'notes_dir')), filename)
+
+    expand_env('kakoune')
+
+    sessions = subprocess.check_output(['/usr/bin/kak', '-l'])
+    if 'notevim' in sessions.split("\n"):
+        # we have a session running
+        fetch_window()
+
+        # tell running session to open our file, instead of starting a new editor
+        tell_them = [
+            '/usr/bin/kak',
+            '-c', 'notevim',
+            '-e', "eval -client client0 'edit %s'; quit" % filename
+        ]
+        subprocess.call(tell_them)
+        return
+
+    cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('kakoune', 'terminal').strip()) + ['-s', 'notevim'], full_path))
+    subprocess.call(cmd, cwd=CONFIG.get('notevim', 'notes_dir'), env=os.environ)
 
 def nvim_activate_if_possible(client, filename):
     for tabid, tab in enumerate(client.tabpages):
