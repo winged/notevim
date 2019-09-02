@@ -224,22 +224,28 @@ def cmd_open_neovim(filename):
 def cmd_open_kakoune(filename):
     full_path = os.path.join(os.path.expandvars(CONFIG.get('notevim', 'notes_dir')), filename)
 
-    expand_env('kakoune')
-
     sessions = subprocess.check_output(['/usr/bin/kak', '-l'])
     if 'notevim' in sessions.split("\n"):
         # we have a session running
         fetch_window()
 
         # tell running session to open our file, instead of starting a new editor
+
+        if filename == '*':
+            # special case, "open new file"
+            command = "eval -client client0 'edit -scratch'; quit"
+        else:
+            command = "eval -client client0 'edit %s'; quit" % full_path
         tell_them = [
             '/usr/bin/kak',
             '-c', 'notevim',
-            '-e', "eval -client client0 'edit %s'; quit" % filename
+            '-ui', 'json',
+            '-e', command
         ]
         subprocess.call(tell_them)
         return
 
+    expand_env('kakoune')
     cmd = list(generate_cmdline(re.split(r"\s+", CONFIG.get('kakoune', 'terminal').strip()) + ['-s', 'notevim'], full_path))
     subprocess.call(cmd, cwd=CONFIG.get('notevim', 'notes_dir'), env=os.environ)
 
