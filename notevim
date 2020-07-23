@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 # vim: sw=4:ts=4:et
 
 from __future__ import print_function
@@ -8,10 +8,7 @@ import sys
 import os
 import re
 
-try:
-    import ConfigParser as configparser
-except:
-    import configparser
+import configparser
 
 CONFIG_DEFAULTS = """
 [notevim]
