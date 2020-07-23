@@ -117,7 +117,7 @@ def cmd_dmenu():
         stdin =subprocess.PIPE,
         stdout=subprocess.PIPE
     )
-    stdout, stderr = dm.communicate(names_list)
+    stdout, stderr = dm.communicate(names_list.encode('utf-8'))
 
     stdout = stdout.decode('utf-8')
     return stdout.strip()
@@ -222,7 +222,7 @@ def cmd_open_kakoune(filename):
     full_path = os.path.join(os.path.expandvars(CONFIG.get('notevim', 'notes_dir')), filename)
 
     sessions = subprocess.check_output(['/usr/bin/kak', '-l'])
-    if 'notevim' in sessions.split("\n"):
+    if b'notevim' in sessions.split(b"\n"):
         # we have a session running
         fetch_window()
 
