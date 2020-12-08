@@ -67,6 +67,7 @@ def cmd_usage():
         "   notevim <filename>  - open file in note directory\n"
         "   notevim --openbox   - Openbox pipe menu with the files in the note dir\n"
         "   notevim --dmenu     - Show dmenu as a selector for the files\n"
+        "   notevim --rofi      - Show rofi as a selector for the files\n"
         "   notevim --list      - Normal list of the files in the note dir\n"
         "   notevim             - Without any parameters, shows this help text\n"
         "The note directory is %s\n" % CONFIG.get('notevim', 'notes_dir'))
@@ -110,10 +111,14 @@ def cmd_list_openbox():
 
     print('</openbox_pipe_menu>\n')
 
-def cmd_dmenu():
+def cmd_menu(menutool):
+    commandlines = {
+        'rofi':  ['rofi', '-dmenu', '-p', 'Open Note'],
+        'dmenu': ['dmenu', '-i', '-p', 'Open Note:']
+    }
     names_list = "\n".join(sorted(list_files())) + "\n"
     dm = subprocess.Popen(
-        ['dmenu', '-i', '-p', 'Open Note:'],
+        commandlines[menutool],
         stdin =subprocess.PIPE,
         stdout=subprocess.PIPE
     )
@@ -326,8 +331,8 @@ if __name__ == '__main__':
     elif cmd == '--openbox':
         cmd_list_openbox()
 
-    elif cmd == '--dmenu':
-        filename = cmd_dmenu()
+    elif cmd in ('--dmenu', '--rofi'):
+        filename = cmd_menu(cmd[2:])
         cmd_open(filename)
 
     else:
