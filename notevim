@@ -113,7 +113,7 @@ def cmd_list_openbox():
 
 def cmd_menu(menutool):
     commandlines = {
-        'rofi':  ['rofi', '-dmenu', '-p', 'Open Note'],
+        'rofi':  ['rofi', '-dmenu', '-p', 'Open Note', '-i'],
         'dmenu': ['dmenu', '-i', '-p', 'Open Note:']
     }
     names_list = "\n".join(sorted(list_files())) + "\n"
