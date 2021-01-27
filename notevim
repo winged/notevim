@@ -77,8 +77,8 @@ def cmd_usage():
 def list_files():
     yield '*'
     notes_dir = os.path.expandvars(CONFIG.get('notevim', 'notes_dir'))
-    for name in glob.glob(os.path.join(notes_dir, '*')):
-        yield os.path.basename(name)
+    for name in glob.glob(os.path.join(notes_dir, '**'), recursive=True):
+        yield name.replace(notes_dir, '')
 
 def cmd_list():
     for name in list_files():
